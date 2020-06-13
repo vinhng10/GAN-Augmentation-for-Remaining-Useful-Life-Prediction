@@ -6,7 +6,7 @@ class Encoder(nn.Module):
                  input_size,
                  hidden_size,
                  num_layers,
-                 dropout=0,
+                 dropout,
                  bidirectional=False):
         """
         Args:
@@ -17,11 +17,13 @@ class Encoder(nn.Module):
             bidirectional (boolean): whether to use bidirectional model.
         """
         super(Encoder, self).__init__()
+        num_directions = 2 if bidirectional else 1
         self.gru = nn.GRU(input_size,
                           hidden_size,
                           num_layers,
                           dropout=dropout if num_layers else 0,
                           bidirectional=bidirectional)
+        self.compress = nn.Linear(num_layers*num_directions, num_layers)
 
     def forward(self, input, hidden):
         """
@@ -36,6 +38,9 @@ class Encoder(nn.Module):
         """
         # Feed source sequences into GRU:
         output, hidden = self.gru(input, hidden)
+        hidden = hidden.permute(1, 2, 0)
+        hidden = self.compress(hidden)
+        hidden = hidden.permute(2, 0, 1)
         return output, hidden
 
 class Decoder(nn.Module):
@@ -43,7 +48,7 @@ class Decoder(nn.Module):
                  input_size,
                  hidden_size,
                  num_layers,
-                 dropout=0,
+                 dropout,
                  output_size):
         """
         Args:
