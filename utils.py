@@ -1,16 +1,21 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from dataset import *
 import numpy as np
 from multiprocessing import cpu_count
 
-def split_sequence(sequence, source_len, target_len):
+def split_sequence(source,
+                   target,
+                   source_len,
+                   target_len):
     """
     Split sequence with sliding window into
     sequences of context features and target.
 
     Args:
-        sequence (np.array): sequence
+        source (np.array): Source sequence
+        target (np.array): Target sequence
         source_len (int): Length of input sequence.
         target_len (int): Length of target sequence.
 
@@ -18,25 +23,34 @@ def split_sequence(sequence, source_len, target_len):
         X (np.array): sequence of features
         y (np.array): sequence of targets
     """
+    assert len(source) == len(target), \
+            'Source sequence and target sequence should have the same length.'
+
     X, y = list(), list()
-    for i in range(len(sequence)):
+    for i in range(len(source)):
         # Find the end of this pattern:
-        ctx_end = i + source_len
-        tgt_end = ctx_end + target_len
+        src_end = i + source_len
+        tgt_end = src_end + target_len
         # Check if beyond the length of sequence:
-        if tgt_end > len(sequence):
+        if tgt_end > len(source):
             break
-        X.append(sequence[i:ctx_end, :])
-        y.append(sequence[ctx_end:tgt_end, :])
+        X.append(source[i:src_end, :])
+        y.append(target[src_end:tgt_end, :])
     return np.array(X), np.array(y)
 
-def get_datasets_loaders(ts, test_size, source_len, target_len, batch_size):
+def get_datasets_loaders(source,
+                         target,
+                         test_size,
+                         source_len,
+                         target_len,
+                         batch_size):
     """
     Split the time series into train and test set,
     then create datasets and dataloaders for both datasets.
 
     Args:
-        ts (np.array): time series dataset
+        source (np.array): Source time series dataset.
+        target (np.array): Target time series dataset.
         test_size (float): Proportion of test dataset.
         source_len (int): Length of input sequence.
         target_len (int): Length of target sequence.
@@ -49,10 +63,12 @@ def get_datasets_loaders(ts, test_size, source_len, target_len, batch_size):
         testloader (DataLoader): Test loader.
     """
     # Get the split point:
-    n = int(len(ts) * test_size)
+    n = int(len(source) * test_size)
     # Get the train and test datasets:
-    train_ctx, train_tgt = split_sequence(ts[:-n], source_len, target_len)
-    test_ctx, test_tgt = split_sequence(ts[-n:], source_len, target_len)
+    train_ctx, train_tgt = split_sequence(source[:-n], target[:-n],
+                                          source_len, target_len)
+    test_ctx, test_tgt = split_sequence(source[-n:], target[-n:],
+                                        source_len, target_len)
     trainset = ArrayDataset([train_ctx, train_tgt])
     testset = ArrayDataset([test_ctx, test_tgt])
     # Get the train and test loaders:
