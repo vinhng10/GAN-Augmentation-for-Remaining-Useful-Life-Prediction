@@ -76,18 +76,19 @@ def get_datasets_loaders(source,
     testloader = DataLoader(testset, batch_size, False, num_workers=cpu_count())
     return trainset, testset, trainloader, testloader
 
-def test_fn(model, testloader, metrics, device):
+def test_fn(encoder, decoder, testloader, device):
     # Toggle evaluation mode:
-    model.eval()
+    encoder.eval()
+    decoder.eval()
     # Compute the metrics:
     loss = 0
     for src, tgt in testloader:
         with torch.no_grad():
-            src = src.transpose(1, 0).to(device)
-            tgt = tgt.transpose(1, 0).to(device)
-            output = model(src)
-            loss += F.mse_loss(output, tgt.squeeze()).item()
-    return loss / len(testloader.dataset)
+            src, tgt = src.to(device), tgt.to(device)
+            _, hidden = encoder(src)
+            outputs, _ = decoder(hidden, len(tgt[0]))
+            loss += F.mse_loss(outputs, tgt).item()
+    return loss / testloader.batch_size
 
 def forecast_fn():
     pass
