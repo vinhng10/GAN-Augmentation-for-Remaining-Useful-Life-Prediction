@@ -23,7 +23,8 @@ class Encoder(nn.Module):
                           hidden_size,
                           num_layers,
                           dropout=dropout if num_layers else 0,
-                          bidirectional=bidirectional)
+                          bidirectional=bidirectional,
+                          batch_first=True)
         self.compress = nn.Linear(num_layers*num_directions, num_layers)
 
     def forward(self, input, hidden=None):
@@ -42,7 +43,7 @@ class Encoder(nn.Module):
         hidden = hidden.permute(1, 2, 0)
         hidden = self.compress(hidden)
         hidden = hidden.permute(2, 0, 1)
-        return output, hidden
+        return output, hidden.contiguous()
 
 class Decoder(nn.Module):
     def __init__(self,
@@ -62,7 +63,8 @@ class Decoder(nn.Module):
         self.gru = nn.GRU(target_size,
                           hidden_size,
                           num_layers,
-                          dropout=dropout if num_layers else 0)
+                          dropout=dropout if num_layers else 0,
+                          batch_first=True)
         self.out = nn.Linear(hidden_size, target_size)
 
     def forward(self, hidden, pred_len, target=None, teacher_forcing=False):
@@ -85,16 +87,16 @@ class Decoder(nn.Module):
         # Determine constants:
         batch = hidden.shape[1]
         # The starting value to feed to the GRU:
-        val = torch.zeros((1, batch, self.target_size), device=hidden.device)
+        val = torch.zeros((batch, 1, self.target_size), device=hidden.device)
         if target is not None:
-            target = torch.cat([val, target[:-1]])
+            target = torch.cat([val, target[:, :-1, :]], dim=1)
         # Sequence to record the predicted values:
         outputs = list()
         for i in range(pred_len):
             # Embed the value at ith time step:
             # If teacher_forcing then use the target value at current step
             # Else use the predicted value at previous step:
-            val = target[i:i+1] if teacher_forcing else val
+            val = target[:, i:i+1, :] if teacher_forcing else val
             # Feed the previous value and the hidden to the network:
             output, hidden = self.gru(val, hidden)
             # Predict new output:
@@ -102,7 +104,7 @@ class Decoder(nn.Module):
             # Record the predicted value:
             outputs.append(val)
         # Concatenate predicted values:
-        outputs = torch.cat(outputs)
+        outputs = torch.cat(outputs, dim=1)
         return outputs, hidden
 
 class Seq2Seq(nn.Module):
