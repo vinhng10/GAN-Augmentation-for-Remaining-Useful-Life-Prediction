@@ -29,7 +29,7 @@ def split_sequence(source,
                    target,
                    source_len,
                    target_len, 
-                   target_start_next=True):
+                   target_start_next):
     """ Split sequence with sliding window into
         sequences of context features and target.
 
@@ -70,6 +70,7 @@ def get_datasets_loaders(source,
                          test_size,
                          source_len,
                          target_len,
+                         target_start_next,
                          batch_size):
     """ Split the time series into train and test set,
         then create datasets and dataloaders for both datasets.
@@ -80,6 +81,10 @@ def get_datasets_loaders(source,
             test_size (float): Proportion of test dataset.
             source_len (int): Length of input sequence.
             target_len (int): Length of target sequence.
+            target_start_next (bool): If True, target sequence
+                    starts on the next time step of last step of source
+                    sequence. If False, target sequence starts at the 
+                    same time step of source sequence.
             batch_size (int): Batch size.
 
         Return:
@@ -92,9 +97,11 @@ def get_datasets_loaders(source,
     n = int(len(source) * test_size)
     # Get the train and test datasets:
     train_ctx, train_tgt = split_sequence(source[:-n], target[:-n],
-                                          source_len, target_len)
+                                          source_len, target_len,
+                                          target_start_next)
     test_ctx, test_tgt = split_sequence(source[-n:], target[-n:],
-                                        source_len, target_len)
+                                        source_len, target_len,
+                                        target_start_next)
     trainset = ArrayDataset([train_ctx, train_tgt])
     testset = ArrayDataset([test_ctx, test_tgt])
     # Get the train and test loaders:
