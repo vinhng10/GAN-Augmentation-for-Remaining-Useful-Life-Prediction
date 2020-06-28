@@ -23,7 +23,7 @@ def get_RUL(cycles, max_RUL):
     """
     constant_RUL = np.full(max(0, cycles-max_RUL), max_RUL)
     linear_RUL = np.arange(min(cycles-1, max_RUL-1), -1, -1)
-    return np.concatenate((constant_RUL, linear_RUL))
+    return np.concatenate((constant_RUL, linear_RUL)).reshape(-1, 1)
 
 def split_sequence(source,
                    target,
@@ -121,7 +121,7 @@ def test_fn(encoder, decoder, testloader, device):
             _, hidden = encoder(src)
             outputs, _ = decoder(hidden, len(tgt[0]))
             loss += F.mse_loss(outputs, tgt).item()
-    return loss / testloader.batch_size
+    return loss / len(testloader)
 
 def forecast_fn():
     pass

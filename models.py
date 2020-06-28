@@ -100,7 +100,7 @@ class Decoder(nn.Module):
             # Feed the previous value and the hidden to the network:
             output, hidden = self.gru(val, hidden)
             # Predict new output:
-            val = self.out(output.relu()).tanh()
+            val = self.out(output.relu()).sigmoid()
             # Record the predicted value:
             outputs.append(val)
         # Concatenate predicted values:
