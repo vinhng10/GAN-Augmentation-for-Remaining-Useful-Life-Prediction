@@ -2,6 +2,48 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+class SimpleGRU(nn.Module):
+    def __init__(self,
+                 source_size,
+                 hidden_size,
+                 num_layers,
+                 dropout,
+                 bidirectional=False):
+        """
+            Args:
+                source_size (int): The expected number of features in the input.
+                hidden_size (int): The number of features in the hidden state.
+                num_layers (int): Number of recurrent layers.
+                dropout (float): dropout probability.
+                bidirectional (boolean): whether to use bidirectional model.
+        """
+        super(SimpleGRU, self).__init__()
+        num_directions = 2 if bidirectional else 1
+        self.gru = nn.GRU(source_size,
+                          hidden_size,
+                          num_layers,
+                          dropout=dropout if num_layers else 0,
+                          bidirectional=bidirectional,
+                          batch_first=True)
+        self.fc1 = nn.Linear(num_directions*hidden_size, 64)
+        self.fc2 = nn.Linear(64, 1)        
+
+    def forward(self, input, hidden=None):
+        """
+            Args:
+                input (pred_len, batch, source_size): Input sequence.
+                hidden (num_layers*num_directions, batch, hidden_size): Initial states.
+
+            Returns:
+                output (pred_len, batch, num_directions*hidden_size): Outputs at every step.
+                hidden (num_layers, batch, hidden_size): Final state.
+        """
+        # Feed source sequences into GRU:
+        output, _ = self.gru(input, hidden)
+        output = self.fc1(output[:, -1, :]).relu()
+        output = self.fc2(output).sigmoid()
+        return output
+
 class Encoder(nn.Module):
     def __init__(self,
                  source_size,
