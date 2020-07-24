@@ -3,14 +3,18 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 from dataset import *
 from multiprocessing import cpu_count
 
 def train_val_split(FD, val_size):
-    engines = np.random.permutation(FD[0].unique())
-    train_engines, val_engines = sorted(engines[:-val_size]), sorted(engines[-val_size:])
-    train_FD = pd.concat([FD[FD[0] == i] for i in train_engines])
-    val_FD = pd.concat([FD[FD[0] == i] for i in val_engines])
+    train_FD, val_FD = list(), list()
+    for fd in FD:
+        n_val = int(len(fd[0].unique()) * val_size)
+        engines = np.random.permutation(fd[0].unique())
+        train_engines, val_engines = sorted(engines[:-n_val]), sorted(engines[-n_val:])
+        train_FD.append(pd.concat([fd[fd[0] == i] for i in train_engines]))
+        val_FD.append(pd.concat([fd[fd[0] == i] for i in val_engines]))
     return train_FD, val_FD
 
 def get_rul(cycles, max_RUL):
@@ -50,37 +54,38 @@ def prepare_plot(FD, engine_idx, window_size):
         X.append(fd[i:src_end, :])
     return torch.from_numpy(np.array(X)).float()
 
-def plot_rul(fd, model, window_size, n_cols=4, figsize=(20, 15)):
+def plot_rul(model, device, fd, max_rul, window_size, n_cols=4, figsize=(20, 15)):
     engines = fd[0].unique()
     n_rows = int(np.ceil(len(engines)/n_cols))
     fig, ax = plt.subplots(n_rows, n_cols, figsize=figsize)
     for i in range(len(engines)):
         # Get test engine:
-        X_test = prepare_plot(fd.iloc[:, :-1], engines[i], window_size)
+        X = prepare_plot(fd.iloc[:, :-1], engines[i], window_size)
         # Predict on test data:
         with torch.no_grad():
+            model.to(device)
             model.eval()
-            pred = model(X_test.to(device))
-        rul = get_rul(X_test.shape[0], max_rul)
-        pred = pred.cpu().numpy() * max_rul
+            pred = model(X.to(device))
+        rul = get_rul(X.shape[0], max_rul)
+        pred = pred.squeeze().cpu().numpy() * max_rul
         ax[i//n_cols, i%n_cols].plot(pred, label="Predicted RUL")
         ax[i//n_cols, i%n_cols].plot(rul, label="Real RUL")
         ax[i//n_cols, i%n_cols].set_title(f"Valid Engine {engines[i]}")
         ax[i//n_cols, i%n_cols].legend()
 
-def prepare_data(FD, window_size, max_RUL, batch_size, shuffle=True):
-    num_engines = FD[0].unique()
+def prepare_data(FD, window_size, max_RUL, batch_size, shuffle=True, pin_memory=True):
     src, tgt = list(), list()
-    for i in num_engines:
-        # Query working conditions & sensor readings:
-        X = FD[FD[0] == i].iloc[:, 2:-1].values
-        y = FD[FD[0] == i].iloc[:, -1:].values
-        # Split source & target with sliding window:
-        X, y = split_sequence(X, y, window_size, 1, False)
-        src.append(X); tgt.append(y)
+    for fd in FD:
+        for i in fd[0].unique():
+            # Query working conditions & sensor readings:
+            X = fd[fd[0] == i].iloc[:, 2:-1].values
+            y = fd[fd[0] == i].iloc[:, -1:].values
+            # Split source & target with sliding window:
+            X, y = split_sequence(X, y, window_size, 1, False)
+            src.append(X); tgt.append(y)
     src, tgt = np.concatenate(src), np.concatenate(tgt)
     dataset = ArrayDataset((src, tgt))
-    dataloader = DataLoader(dataset, batch_size, shuffle, num_workers=cpu_count())
+    dataloader = DataLoader(dataset, batch_size, shuffle, num_workers=cpu_count(), pin_memory=pin_memory)
     return dataset, dataloader
 
 def split_sequence(source,
@@ -167,17 +172,30 @@ def get_datasets_loaders(source,
     testloader = DataLoader(testset, batch_size, False, num_workers=cpu_count())
     return trainset, testset, trainloader, testloader
 
-def validate(model, validloader, device):
-    # Toggle evaluation mode:
-    model.eval()
-    # Compute the metrics:
-    loss = 0
-    for src, tgt in validloader:
+def prepare_test(test_fd, rul_fd, window_size, max_rul):
+    engines = test_fd[0].unique()
+    tmp = []
+    for i in engines:
+        engine = test_fd[test_fd[0] == i].iloc[:, 2:].values
+        if len(engine) < window_size:
+            prepend = np.repeat(engine[0:1], max(window_size-len(engine), 0), axis=0)
+            tmp.append(np.concatenate((prepend, engine)))
+        else:
+            tmp.append(engine[-window_size:])
+    data = torch.from_numpy(np.array(tmp)).float()
+    rul = torch.from_numpy(rul_fd.values / max_rul).float()
+    return data, rul
+
+def test(model, test_fd, rul_fd, window_size, max_rul, device):
+    model.to(device)
+    rmse = []
+    for i in range(4):
+        data, rul = prepare_test(test_fd[i], rul_fd[i], window_size, max_rul)
         with torch.no_grad():
-            src, tgt = src.to(device), tgt.to(device)
-            pred = model(src)
-            loss += F.mse_loss(pred.squeeze(), tgt.squeeze()).item()
-    return loss * validloader.batch_size / len(validloader.dataset)
+            data, rul = data.to(device), rul.to(device)
+            pred = model(data)
+            rmse.append(np.sqrt(F.mse_loss(pred.squeeze(), rul.squeeze()).item())*max_rul)
+    return rmse
 
 def forecast_fn():
     pass
