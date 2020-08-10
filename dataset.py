@@ -1,6 +1,7 @@
 import os
 import torch
 import numpy as np
+from models import *
 from torch.utils.data import Dataset, DataLoader
 
 class ArrayDataset(Dataset):
@@ -21,3 +22,13 @@ class ArrayDataset(Dataset):
         return tuple(torch.from_numpy(data[idx]).float() \
                      for data in self.datasets)
 
+class FakeDataset(Dataset):
+    def __init__(self, n_fake=10000):
+        super(FakeDataset, self).__init__()
+        self.n_fake = n_fake
+    
+    def __len__(self):
+        return self.n_fake
+    
+    def __getitem__(self, idx):
+        return (0, 0)

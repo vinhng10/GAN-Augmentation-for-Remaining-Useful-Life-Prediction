@@ -2,6 +2,7 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torchlayers as tl
 
 class SimpleGRU(nn.Module):
     def __init__(self,
@@ -145,87 +146,167 @@ class Decoder(nn.Module):
         return outputs, hidden
 
 class Generator(nn.Module):
+    """ RNN Generator """
     def __init__(self,
                  noise_size,
                  hidden_size,
                  output_size,
                  num_layers,
-                 dropout,
-                 bidirectional=False):
+                 dropout):
         """ Args:
                 noise_size (int): The expected number of features in the input.
                 hidden_size (int): The number of features in the hidden state.
                 output_size (int): The number of features in the output state.
                 num_layers (int): Number of recurrent layers.
                 dropout (float): Dropout probability.
-                bidirectional (boolean): Whether to use bidirectional model.
         """
         super(Generator, self).__init__()
-        num_directions = 2 if bidirectional else 1
-        self.gru = nn.GRU(noise_size+2,
+        self.gru = nn.GRU(noise_size+1,
                           hidden_size,
                           num_layers,
                           dropout=dropout if num_layers > 1 else 0,
-                          bidirectional=bidirectional,
                           batch_first=True)
-        self.fc1 = nn.Linear(num_directions*hidden_size, 64)
+        self.fc1 = nn.Linear(hidden_size, 64)
+        self.norm = nn.LayerNorm(64)
         self.fc2 = nn.Linear(64, output_size)
 
-    def forward(self, batch, noise, condition):
+    def forward(self, noise, condition):
         """ Args:
-                noise (batch, seq_len, input_size): Noise input sequence.
-                condition (batch, seq_len, 2): Conditional input.
+                noise (batch, seq_len, noise_size): Noise input sequence.
+                condition (batch, seq_len, 1): Conditional input.
 
             Returns:
                 output (batch, seq_len, output_size): Generated sequence.
         """
-        # Concatenate input with condition:
-        input = torch.concat((noise, condition), dim=-1)
+        batch, seq_len, _ = noise.shape
+        input = torch.cat((noise, condition), dim=-1)
         output, _ = self.gru(input)
-        output = self.fc1(output).relu()
+        output = output + torch.randn_like(output)
+        output = self.norm(self.fc1(output)).relu()
+        output = output + torch.randn_like(output)
         output = self.fc2(output).tanh()
         return output
 
-    def get_noise(self, length, size):
-        return torch.randn(
-
 class Discriminator(nn.Module):
+    """ RNN Discriminator """
     def __init__(self,
-                 source_size,
+                 input_size,
                  hidden_size,
                  num_layers,
                  dropout,
                  bidirectional=False):
         """ Args:
-                source_size (int): The expected number of features in the input.
+                input_size (int): The expected number of features in the input.
                 hidden_size (int): The number of features in the hidden state.
                 num_layers (int): Number of recurrent layers.
                 dropout (float): dropout probability.
                 bidirectional (boolean): whether to use bidirectional model.
         """
-        super(SimpleGRU, self).__init__()
+        super(Discriminator, self).__init__()
         num_directions = 2 if bidirectional else 1
-        self.gru = nn.GRU(source_size,
+        self.gru = nn.GRU(input_size+1,
                           hidden_size,
                           num_layers,
                           dropout=dropout if num_layers > 1 else 0,
                           bidirectional=bidirectional,
                           batch_first=True)
         self.fc1 = nn.Linear(num_directions*hidden_size, 64)
+        self.norm = nn.LayerNorm(64)
         self.fc2 = nn.Linear(64, 1)
 
-    def forward(self, input, hidden=None):
+    def forward(self, input, condition):
         """ Args:
-                input (pred_len, batch, source_size): Input sequence.
-                hidden (num_layers*num_directions, batch, hidden_size): Initial states.
+                input (batch, seq_len, input_size): Input sequence.
+                condition (batch, seq_len, 2): Conditional input.
 
             Returns:
-                output (pred_len, batch, num_directions*hidden_size): Outputs at every step.
-                hidden (num_layers, batch, hidden_size): Final state.
+                output (batch): Real / Fake prediction.
         """
-        # Feed source sequences into GRU:
-        output, _ = self.gru(input, hidden)
-        output = self.fc1(output[:, -1, :]).relu()
-        output = self.fc2(output).sigmoid().unsqueeze(2)
+        batch, seq_len, _ = input.shape
+        input = torch.cat((input, condition), dim=-1)
+        output, _ = self.gru(input)
+        output = self.norm(self.fc1(output.mean(1))).relu()
+        output = self.fc2(output).sigmoid().squeeze()
         return output
+
+class CNNGenerator(nn.Module):
+    """ CNN Generator """
+    def __init__(self, in_features, out_features, init_features, \
+                noise_size, seq_len):
+        """ Args:
+                in_features (int): The number of input features.
+                out_features (int): The number of output features.
+                init_features (int): The number of initial features.
+                noise_size (int): The size of noise.
+                seq_len (int): The length of generated data.
+        """
+        super(CNNGenerator, self).__init__()
+        self.G = nn.Sequential(
+            nn.Conv1d(in_features+2, init_features, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm1d(init_features),
+            nn.ReLU(inplace=True),
+            nn.Upsample(scale_factor=2),
+            nn.Conv1d(init_features, init_features//2, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm1d(init_features//2),
+            nn.ReLU(inplace=True),
+            nn.Upsample(scale_factor=2),
+            nn.Conv1d(init_features//2, out_features, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm1d(out_features),
+            nn.ReLU(inplace=True),
+            nn.Upsample(scale_factor=2),
+            nn.Linear(noise_size*8, seq_len),
+            nn.Tanh()
+        )
+
+    def forward(self, noise, condition):
+        """ Args:
+                noise (batch, in_features, noise_size): Noise input sequence.
+                condition (batch, 2, noise_size): Conditional input.
+
+            Returns:
+                output (batch, out_features, seq_len): Generated sequence.
+        """
+        inputs = torch.cat((noise, condition), dim=1)
+        output = self.G(inputs)
+        return output
+
+class CNNDiscriminator(nn.Module):
+    """ CNN Discriminator """
+    def __init__(self, init_features):
+        """ Args:
+                init_features (int): The number of initial features.
+        """
+        super(CNNDiscriminator, self).__init__()
+        self.D = nn.Sequential(
+            tl.Conv1d(init_features, kernel_size=3, stride=1, padding=1),
+            tl.BatchNorm1d(),
+            nn.ReLU(inplace=True),
+            nn.MaxPool1d(2, 2),
+            tl.Conv1d(init_features*2, kernel_size=3, stride=1, padding=1),
+            tl.BatchNorm1d(),
+            nn.ReLU(inplace=True),
+            nn.MaxPool1d(2, 2),
+            tl.Conv1d(init_features*4, kernel_size=3, stride=1, padding=1),
+            tl.BatchNorm1d(),
+            nn.ReLU(inplace=True),
+            nn.MaxPool1d(2, 2),
+            tl.Flatten(),
+            tl.Linear(32),
+            nn.ReLU(inplace=True),
+            tl.Linear(1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, inputs, condition):
+        """ Args:
+                inputs (batch, in_features, seq_len): Input sequence.
+                condition (batch, 2, seq_len): Conditional input.
+
+            Returns:
+                output (batch, 1): Real/Fake prediction.
+        """
+        inputs = torch.cat((inputs, condition), dim=1)
+        output = self.D(inputs).squeeze()
+        return output
+
 
