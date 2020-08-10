@@ -2,7 +2,7 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torchlayers as tl
+#import torchlayers as tl
 
 class SimpleGRU(nn.Module):
     def __init__(self,
@@ -181,9 +181,7 @@ class Generator(nn.Module):
         batch, seq_len, _ = noise.shape
         input = torch.cat((noise, condition), dim=-1)
         output, _ = self.gru(input)
-        output = output + torch.randn_like(output)
         output = self.norm(self.fc1(output)).relu()
-        output = output + torch.randn_like(output)
         output = self.fc2(output).tanh()
         return output
 
