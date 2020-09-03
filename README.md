@@ -3,7 +3,7 @@
 [![Build Status](https://travis-ci.org/joemccann/dillinger.svg?branch=master)](https://travis-ci.org/joemccann/dillinger)
 
 ## Introduction
-This repository demonstrates my attempt to apply GAN augmentation to improve remaining useful life (RUL) prediction. This work is done as part of my bachelor thesis, "Toward Deep Learning in Remaining Useful Life Estimation", at Aalto University. 
+This repository demonstrates my attempt to apply GAN augmentation to improve remaining useful life (RUL) prediction. This work is done as part of my bachelor thesis, [Toward Deep Learning in Remaining Useful Life Estimation](https://github.com/vinhng10/GAN-Augmentation-for-Remaining-Useful-Life-Prediction/blob/master/Thesis.pdf), at Aalto University. 
 GAN aumentation has been shown to improve performance of some machine learning model by introducing more data to training. The goal of this project is to exammine if GAN augmentation can also enhance RUL prediction in predictive maintenance.
 
 ## Experiment
