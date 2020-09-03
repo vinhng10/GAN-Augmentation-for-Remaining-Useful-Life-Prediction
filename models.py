@@ -215,7 +215,7 @@ class Discriminator(nn.Module):
     def forward(self, input, condition):
         """ Args:
                 input (batch, seq_len, input_size): Input sequence.
-                condition (batch, seq_len, 2): Conditional input.
+                condition (batch, seq_len, 1): Conditional input.
 
             Returns:
                 output (batch): Real / Fake prediction.
@@ -226,85 +226,4 @@ class Discriminator(nn.Module):
         output = self.norm(self.fc1(output.mean(1))).relu()
         output = self.fc2(output).sigmoid().squeeze()
         return output
-
-class CNNGenerator(nn.Module):
-    """ CNN Generator """
-    def __init__(self, in_features, out_features, init_features, \
-                noise_size, seq_len):
-        """ Args:
-                in_features (int): The number of input features.
-                out_features (int): The number of output features.
-                init_features (int): The number of initial features.
-                noise_size (int): The size of noise.
-                seq_len (int): The length of generated data.
-        """
-        super(CNNGenerator, self).__init__()
-        self.G = nn.Sequential(
-            nn.Conv1d(in_features+2, init_features, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm1d(init_features),
-            nn.ReLU(inplace=True),
-            nn.Upsample(scale_factor=2),
-            nn.Conv1d(init_features, init_features//2, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm1d(init_features//2),
-            nn.ReLU(inplace=True),
-            nn.Upsample(scale_factor=2),
-            nn.Conv1d(init_features//2, out_features, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm1d(out_features),
-            nn.ReLU(inplace=True),
-            nn.Upsample(scale_factor=2),
-            nn.Linear(noise_size*8, seq_len),
-            nn.Tanh()
-        )
-
-    def forward(self, noise, condition):
-        """ Args:
-                noise (batch, in_features, noise_size): Noise input sequence.
-                condition (batch, 2, noise_size): Conditional input.
-
-            Returns:
-                output (batch, out_features, seq_len): Generated sequence.
-        """
-        inputs = torch.cat((noise, condition), dim=1)
-        output = self.G(inputs)
-        return output
-
-class CNNDiscriminator(nn.Module):
-    """ CNN Discriminator """
-    def __init__(self, init_features):
-        """ Args:
-                init_features (int): The number of initial features.
-        """
-        super(CNNDiscriminator, self).__init__()
-        self.D = nn.Sequential(
-            tl.Conv1d(init_features, kernel_size=3, stride=1, padding=1),
-            tl.BatchNorm1d(),
-            nn.ReLU(inplace=True),
-            nn.MaxPool1d(2, 2),
-            tl.Conv1d(init_features*2, kernel_size=3, stride=1, padding=1),
-            tl.BatchNorm1d(),
-            nn.ReLU(inplace=True),
-            nn.MaxPool1d(2, 2),
-            tl.Conv1d(init_features*4, kernel_size=3, stride=1, padding=1),
-            tl.BatchNorm1d(),
-            nn.ReLU(inplace=True),
-            nn.MaxPool1d(2, 2),
-            tl.Flatten(),
-            tl.Linear(32),
-            nn.ReLU(inplace=True),
-            tl.Linear(1),
-            nn.Sigmoid()
-        )
-
-    def forward(self, inputs, condition):
-        """ Args:
-                inputs (batch, in_features, seq_len): Input sequence.
-                condition (batch, 2, seq_len): Conditional input.
-
-            Returns:
-                output (batch, 1): Real/Fake prediction.
-        """
-        inputs = torch.cat((inputs, condition), dim=1)
-        output = self.D(inputs).squeeze()
-        return output
-
 
