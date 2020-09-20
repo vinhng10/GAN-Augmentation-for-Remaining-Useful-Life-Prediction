@@ -7,7 +7,7 @@ This repository demonstrates my attempt to apply GAN augmentation to improve rem
 GAN aumentation has been shown to improve performance of some machine learning model by introducing more data to training. The goal of this project is to exammine if GAN augmentation can also enhance RUL prediction in predictive maintenance.
 
 ## Experiment
-The Colab sample experiement can be found [here](https://colab.research.google.com/drive/1NY-4ISTnyFUqXeZmycdIn2zZEXiVXVaZ?authuser=2).
+The Colab sample experiement can be found [here](https://colab.research.google.com/drive/1NY-4ISTnyFUqXeZmycdIn2zZEXiVXVaZ?usp=sharing).
 
 ## Dataset
 The dataset used in this experiment is C-MAPSS dataset from Prognostic and Health Management Challenge in 2008. The detail description and download link of the dataset can be found [here](https://github.com/makinarocks/awesome-industrial-machine-datasets/tree/master/data-explanation/PHM08%20Challenge%20on%20this%20dataset).
