@@ -4,7 +4,7 @@
 
 ## Introduction
 This repository demonstrates my attempt to apply GAN augmentation to improve remaining useful life (RUL) prediction. This work is done as part of my bachelor thesis, [Toward Deep Learning in Remaining Useful Life Estimation](https://github.com/vinhng10/GAN-Augmentation-for-Remaining-Useful-Life-Prediction/blob/master/Thesis.pdf), at Aalto University. 
-GAN aumentation has been shown to improve performance of some machine learning model by introducing more data to training. The goal of this project is to exammine if GAN augmentation can also enhance RUL prediction in predictive maintenance.
+GAN augmentation has been shown to improve performance of some machine learning model by introducing more data to training. The goal of this project is to examine if GAN augmentation can also enhance RUL prediction in predictive maintenance.
 
 ## Experiment
 The Colab sample experiement can be found [here](https://colab.research.google.com/drive/1NY-4ISTnyFUqXeZmycdIn2zZEXiVXVaZ?usp=sharing).
